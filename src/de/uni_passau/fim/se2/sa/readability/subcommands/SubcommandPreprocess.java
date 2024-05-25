@@ -8,18 +8,21 @@ import de.uni_passau.fim.se2.sa.readability.features.NumberLinesFeature;
 import de.uni_passau.fim.se2.sa.readability.features.TokenEntropyFeature;
 import picocli.CommandLine.*;
 import picocli.CommandLine.Model.CommandSpec;
-
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.text.DecimalFormat;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-@Command(
-        name = "preprocess",
-        description = "Preprocesses a directory of java snippet files based on the specified feature metrics"
-)
+@Command(name = "preprocess",
+        description = "Preprocesses a directory of java snippet files based on the specified feature metrics")
 public class SubcommandPreprocess implements Callable<Integer> {
 
     @Spec
@@ -31,11 +34,8 @@ public class SubcommandPreprocess implements Callable<Integer> {
     private File truth;
     private File targetFile;
 
-    @Option(
-            names = {"-s", "--source"},
-            description = "The directory containing java snippet (.jsnp) files",
-            required = true
-    )
+    @Option(names = {"-s", "--source"},
+            description = "The directory containing java snippet (.jsnp) files", required = true)
     public void setSourceDirectory(final File sourceDir) {
         if (!sourceDir.exists() || !sourceDir.isDirectory()) {
             throw new ParameterException(spec.commandLine(), "Source directory does not exist.");
@@ -43,11 +43,9 @@ public class SubcommandPreprocess implements Callable<Integer> {
         this.sourceDir = sourceDir.toPath();
     }
 
-    @Option(
-            names = {"-g", "--ground-truth"},
+    @Option(names = {"-g", "--ground-truth"},
             description = "The ground truth csv file containing the human readability ratings of the code snippets",
-            required = true
-    )
+            required = true)
     public void setTruth(final File truth) {
         if (!truth.exists() || !truth.isFile()) {
             throw new ParameterException(spec.commandLine(), "Truth file does not exist.");
@@ -55,27 +53,23 @@ public class SubcommandPreprocess implements Callable<Integer> {
         this.truth = truth;
     }
 
-    @Option(
-            names = {"-t", "--target"},
+    @Option(names = {"-t", "--target"},
             description = {"The target file where the preprocessed data will be saved"},
-            required = true
-    )
+            required = true)
     public void setTargetFile(final File targetFile) {
         if (!targetFile.getParentFile().isDirectory()) {
             throw new ParameterException(spec.commandLine(), "Target directory does not exist.");
         }
         if (!Files.getFileExtension(targetFile.getName()).equals("csv")) {
-            throw new ParameterException(spec.commandLine(), "Target file must end with a .csv suffix");
+            throw new ParameterException(spec.commandLine(),
+                    "Target file must end with a .csv suffix");
         }
         this.targetFile = targetFile;
     }
 
-    @Parameters(
-            paramLabel = "featureMetrics",
+    @Parameters(paramLabel = "featureMetrics",
             description = "The The feature metrics to be used: [LINES, TOKEN_ENTROPY, H_VOLUME]",
-            arity = "1...",
-            converter = FeatureConverter.class
-    )
+            arity = "1...", converter = FeatureConverter.class)
     private List<FeatureMetric> featureMetrics;
 
 
@@ -94,7 +88,7 @@ public class SubcommandPreprocess implements Callable<Integer> {
     /**
      * Generates the csv header represented by [SnippetFile, feature1, feature2, ...]
      *
-     * @param csv            the builder for the csv.
+     * @param csv the builder for the csv.
      * @param featureMetrics the list of specified features via the cli.
      */
     private static void generateCSVHeader(StringBuilder csv, List<FeatureMetric> featureMetrics) {
@@ -107,20 +101,57 @@ public class SubcommandPreprocess implements Callable<Integer> {
     }
 
     /**
-     * Traverses through each java snippet in the specified source directory and computes the specified list of feature metrics.
-     * Each snippet is then saved together with its extracted feature values and the truth score as one row in the csv, resulting
-     * in the scheme [File,NumberLines,TokenEntropy,HalsteadVolume,Truth].
+     * Traverses through each java snippet in the specified source directory and computes the
+     * specified list of feature metrics. Each snippet is then saved together with its extracted
+     * feature values and the truth score as one row in the csv, resulting in the scheme
+     * [File,NumberLines,TokenEntropy,HalsteadVolume,Truth].
      * <p>
-     * The File column value corresponds to the respective file name.
-     * All feature values are rounded to two decimal places.
-     * The truth value corresponds to a String that is set to the value "Y" if the mean rater score of a given snippet is greater or equal
-     * than the TRUTH_THRESHOLD. Otherwise, if the mean score is lower than the TRUTH_THRESHOLD the truth value String is set to "N".
+     * The File column value corresponds to the respective file name. All feature values are rounded
+     * to two decimal places. The truth value corresponds to a String that is set to the value "Y"
+     * if the mean rater score of a given snippet is greater or equal than the TRUTH_THRESHOLD.
+     * Otherwise, if the mean score is lower than the TRUTH_THRESHOLD the truth value String is set
+     * to "N".
      *
-     * @param csv            the builder for the csv.
+     * @param csv the builder for the csv.
      * @param featureMetrics the list of specified features via the cli.
      */
     private void collectCSVBody(StringBuilder csv, List<FeatureMetric> featureMetrics) {
-        throw new UnsupportedOperationException("Implement me");
+        try {
+            Comparator<Path> cmp =
+                    (o1, o2) -> Integer.parseInt(o1.getFileName().toString().replace(".jsnp", ""))
+                            - Integer.parseInt(o2.getFileName().toString().replace(".jsnp", ""));
+            var dir = java.nio.file.Files.walk(sourceDir).filter(path -> path.toFile().isFile())
+                    .sorted(cmp).toList();
+
+            Iterator<Double> score;
+            try (var reader = new BufferedReader(new FileReader(truth))) {
+                var line = reader.readLine();
+                while (!line.startsWith("Mean,")) {
+                    line = reader.readLine();
+                }
+                final String rawString = line;
+                score = Arrays.asList(rawString.replace("Mean,", "").split(",")).stream()
+                        .mapToDouble(Double::parseDouble).iterator();
+            }
+
+            for (var path : dir) {
+                csv.append(path.getFileName());
+                try {
+                    var content = new String(java.nio.file.Files.readAllBytes(path));
+                    var df = new DecimalFormat("#.00");
+                    for (FeatureMetric featureMetric : featureMetrics) {
+                        var value = featureMetric.computeMetric(content);
+                        csv.append(String.format(",%s", df.format(value)));
+                    }
+                    csv.append(score.next() >= TRUTH_THRESHOLD ? ",Y" : ",N");
+                    csv.append(System.lineSeparator());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -129,7 +160,8 @@ public class SubcommandPreprocess implements Callable<Integer> {
      * @param csv the generated csv String
      */
     private void writeCSVToFile(String csv) {
-        try (BufferedWriter writer = Files.newWriter(new File(targetFile.getAbsolutePath()), Charsets.UTF_8)) {
+        try (BufferedWriter writer =
+                Files.newWriter(new File(targetFile.getAbsolutePath()), Charsets.UTF_8)) {
             writer.write(csv);
         } catch (IOException e) {
             System.out.println(e.getMessage());
@@ -137,6 +169,7 @@ public class SubcommandPreprocess implements Callable<Integer> {
     }
 
 }
+
 
 /**
  * Converts supplied cli parameters to the respective {@link FeatureMetric}.
@@ -148,7 +181,8 @@ class FeatureConverter implements ITypeConverter<FeatureMetric> {
             case "lines" -> new NumberLinesFeature();
             case "h_volume" -> new HalsteadVolumeFeature();
             case "token_entropy" -> new TokenEntropyFeature();
-            default -> throw new IllegalArgumentException("The metric '" + metric + "' is not a valid option.");
+            default -> throw new IllegalArgumentException(
+                    "The metric '" + metric + "' is not a valid option.");
         };
     }
 }

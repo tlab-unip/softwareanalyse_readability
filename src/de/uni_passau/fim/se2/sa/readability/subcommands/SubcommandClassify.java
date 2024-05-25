@@ -6,16 +6,15 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParameterException;
 import picocli.CommandLine.Spec;
 import weka.classifiers.Evaluation;
+import weka.classifiers.functions.Logistic;
 import weka.core.Instances;
-
+import weka.core.converters.ConverterUtils.DataSource;
 import java.io.File;
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.Callable;
 
-@Command(
-        name = "classify",
-        description = "Classify readability of .jsnp Java snippets"
-)
+@Command(name = "classify", description = "Classify readability of .jsnp Java snippets")
 public class SubcommandClassify implements Callable<Integer> {
 
     @Spec
@@ -23,14 +22,12 @@ public class SubcommandClassify implements Callable<Integer> {
 
     private File data;
 
-    @Option(
-            names = {"-d", "--data"},
-            description = "The data .csv file to train the model on.",
-            required = true
-    )
+    @Option(names = {"-d", "--data"}, description = "The data .csv file to train the model on.",
+            required = true)
     public void setDataFile(File dataFile) {
         if (!dataFile.exists() || !dataFile.isFile()) {
-            throw new ParameterException(spec.commandLine(), "The data file does not exist or is not a file.");
+            throw new ParameterException(spec.commandLine(),
+                    "The data file does not exist or is not a file.");
         }
         data = dataFile;
     }
@@ -60,20 +57,31 @@ public class SubcommandClassify implements Callable<Integer> {
      * @throws IOException if the CSV file specified via the cli could not be loaded.
      */
     private Instances loadDataset() throws IOException {
+        try {
+            var source = new DataSource(data.getAbsolutePath());
+            var dataset = source.getDataSet();
+            dataset.setClassIndex(dataset.numAttributes() - 1);
+            return dataset;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         throw new UnsupportedOperationException("Implement me");
-
     }
 
     /**
-     * Trains and evaluates the "logistic" classifier on the given dataset.
-     * For the evaluation, we apply a 10-fold cross validation using a start seed with a value of 1.
+     * Trains and evaluates the "logistic" classifier on the given dataset. For the evaluation, we
+     * apply a 10-fold cross validation using a start seed with a value of 1.
      *
      * @param dataset The dataset to train and evaluate the logistic classifier on.
      * @return the evaluation object hosting the evaluation results.
      * @throws Exception if the classifier could not be generated successfully.
      */
     private static Evaluation trainAndEvaluate(Instances dataset) throws Exception {
-        throw new UnsupportedOperationException("Implement me");
+        var model = new Logistic();
+        var eval = new Evaluation(dataset);
+        eval.crossValidateModel(model, dataset, 10, new Random(1));
+
+        return eval;
     }
 
     /**

@@ -10,7 +10,7 @@ public class NumberLinesFeature extends FeatureMetric {
      */
     @Override
     public double computeMetric(String codeSnippet) {
-        throw new UnsupportedOperationException("Implement me");
+        return codeSnippet.lines().count();
     }
 
     @Override

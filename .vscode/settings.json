@@ -1,0 +1,9 @@
+{
+  "java.format.settings.url": "https://raw.githubusercontent.com/google/styleguide/gh-pages/eclipse-java-google-style.xml",
+  "maven.terminal.customEnv": [
+    {
+      "environmentVariable": "LOCAL",
+      "value": "en"
+    }
+  ]
+}
