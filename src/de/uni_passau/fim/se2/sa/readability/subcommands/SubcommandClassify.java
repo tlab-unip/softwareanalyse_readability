@@ -54,18 +54,13 @@ public class SubcommandClassify implements Callable<Integer> {
      * Loads the instances dataset by parsing the CSV file specified via the cli.
      *
      * @return the instances dataset ready to be classified.
-     * @throws IOException if the CSV file specified via the cli could not be loaded.
+     * @throws Exception if the CSV file specified via the cli could not be loaded.
      */
-    private Instances loadDataset() throws IOException {
-        try {
-            var source = new DataSource(data.getAbsolutePath());
-            var dataset = source.getDataSet();
-            dataset.setClassIndex(dataset.numAttributes() - 1);
-            return dataset;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        throw new UnsupportedOperationException("Implement me");
+    private Instances loadDataset() throws Exception {
+        var source = new DataSource(data.getAbsolutePath());
+        var dataset = source.getDataSet();
+        dataset.setClassIndex(dataset.numAttributes() - 1);
+        return dataset;
     }
 
     /**

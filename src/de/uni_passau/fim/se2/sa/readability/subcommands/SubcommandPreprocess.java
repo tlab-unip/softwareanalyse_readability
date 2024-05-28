@@ -73,7 +73,7 @@ public class SubcommandPreprocess implements Callable<Integer> {
     private List<FeatureMetric> featureMetrics;
 
 
-    public Integer call() {
+    public Integer call() throws Exception {
 
         StringBuilder csv = new StringBuilder();
         generateCSVHeader(csv, featureMetrics);
@@ -114,43 +114,37 @@ public class SubcommandPreprocess implements Callable<Integer> {
      *
      * @param csv the builder for the csv.
      * @param featureMetrics the list of specified features via the cli.
+     * @throws IOException
      */
-    private void collectCSVBody(StringBuilder csv, List<FeatureMetric> featureMetrics) {
-        try {
-            Comparator<Path> cmp =
-                    (o1, o2) -> Integer.parseInt(o1.getFileName().toString().replace(".jsnp", ""))
-                            - Integer.parseInt(o2.getFileName().toString().replace(".jsnp", ""));
-            var dir = java.nio.file.Files.walk(sourceDir).filter(path -> path.toFile().isFile())
-                    .sorted(cmp).toList();
+    private void collectCSVBody(StringBuilder csv, List<FeatureMetric> featureMetrics)
+            throws Exception {
+        Comparator<Path> cmp =
+                (o1, o2) -> Integer.parseInt(o1.getFileName().toString().replace(".jsnp", ""))
+                        - Integer.parseInt(o2.getFileName().toString().replace(".jsnp", ""));
+        var dir = java.nio.file.Files.walk(sourceDir).filter(path -> path.toFile().isFile())
+                .sorted(cmp).toList();
 
-            Iterator<Double> score;
-            try (var reader = new BufferedReader(new FileReader(truth))) {
-                var line = reader.readLine();
-                while (!line.startsWith("Mean,")) {
-                    line = reader.readLine();
-                }
-                final String rawString = line;
-                score = Arrays.asList(rawString.replace("Mean,", "").split(",")).stream()
-                        .mapToDouble(Double::parseDouble).iterator();
+        Iterator<Double> score;
+        try (var reader = new BufferedReader(new FileReader(truth))) {
+            var line = reader.readLine();
+            while (!line.startsWith("Mean,")) {
+                line = reader.readLine();
             }
+            final String rawString = line;
+            score = Arrays.asList(rawString.replace("Mean,", "").split(",")).stream()
+                    .mapToDouble(Double::parseDouble).iterator();
+        }
 
-            for (var path : dir) {
-                csv.append(path.getFileName());
-                try {
-                    var content = new String(java.nio.file.Files.readAllBytes(path));
-                    var df = new DecimalFormat("#.00");
-                    for (FeatureMetric featureMetric : featureMetrics) {
-                        var value = featureMetric.computeMetric(content);
-                        csv.append(String.format(",%s", df.format(value)));
-                    }
-                    csv.append(score.next() >= TRUTH_THRESHOLD ? ",Y" : ",N");
-                    csv.append(System.lineSeparator());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        for (var path : dir) {
+            csv.append(path.getFileName());
+            var content = new String(java.nio.file.Files.readAllBytes(path));
+            var df = new DecimalFormat("#.00");
+            for (FeatureMetric featureMetric : featureMetrics) {
+                var value = featureMetric.computeMetric(content);
+                csv.append(String.format(",%s", df.format(value)));
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+            csv.append(score.next() >= TRUTH_THRESHOLD ? ",Y" : ",N");
+            csv.append(System.lineSeparator());
         }
     }
 
@@ -159,12 +153,10 @@ public class SubcommandPreprocess implements Callable<Integer> {
      *
      * @param csv the generated csv String
      */
-    private void writeCSVToFile(String csv) {
+    private void writeCSVToFile(String csv) throws Exception {
         try (BufferedWriter writer =
                 Files.newWriter(new File(targetFile.getAbsolutePath()), Charsets.UTF_8)) {
             writer.write(csv);
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
         }
     }
 

@@ -4,8 +4,16 @@
 mvn install
 ```
 
+## Test
+
 ```ps1
 mvn test -Dtest=FeaturesTest -q
+```
+
+### Mutation Test
+
+```ps1
+mvn test-compile org.pitest:pitest-maven:mutationCoverage
 ```
 
 ## Running CLI

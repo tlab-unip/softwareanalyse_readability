@@ -10,7 +10,7 @@ public class NumberLinesFeature extends FeatureMetric {
      */
     @Override
     public double computeMetric(String codeSnippet) {
-        return codeSnippet.lines().count();
+        return codeSnippet.split(System.lineSeparator()).length;
     }
 
     @Override
