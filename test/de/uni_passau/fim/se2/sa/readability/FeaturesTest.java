@@ -32,7 +32,7 @@ public class FeaturesTest {
     }
 
     @BeforeEach
-    private void loadPaths() throws Exception {
+    public void LoadPaths() throws Exception {
         Comparator<Path> cmp =
                 (o1, o2) -> Integer.parseInt(o1.getFileName().toString().replace(".jsnp", ""))
                         - Integer.parseInt(o2.getFileName().toString().replace(".jsnp", ""));
